@@ -16,8 +16,8 @@ from pathlib import Path
 import pickle
 from scipy.stats import norm
 from sklearn.linear_model import LogisticRegression
-from src.team import Team
-from src.model_validator import generate_validation_metrics
+from team import Team
+from model_validator import generate_validation_metrics
 
 pd.options.display.float_format = '{:,.4f}'.format
 pd.set_option("display.max_rows", None, "display.max_columns", None)

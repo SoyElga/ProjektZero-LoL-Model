@@ -17,6 +17,7 @@ import pandas as pd
 from pathlib import Path
 import requests
 from typing import Optional, Union
+import gdown
 
 
 # Utility/Helper Function Definitions
@@ -53,104 +54,115 @@ def get_opponent(column: pd.Series, entity: str) -> list:
         raise ValueError("Entity must be either player or team.")
 
     for i, obj in enumerate(column):
-        # If "Blue Side" - fetch opposing team/player below
-        if flag < gap:
-            opponent.append(column[i + gap])
-            flag += 1
-        # If "Red Side" - fetch opposing team/player above
-        elif gap <= flag < (gap * 2):
-            opponent.append(column[i - gap])
-            flag += 1
-        else:
-            raise ValueError(f"Index {i} - Out Of Bounds")
+        try:
+            # If "Blue Side" - fetch opposing team/player below
+            if flag < gap:
+                opponent.append(column[i + gap])
+                flag += 1
+            # If "Red Side" - fetch opposing team/player above
+            elif gap <= flag < (gap * 2):
+                opponent.append(column[i - gap])
+                flag += 1
+            else:
+                raise ValueError(f"Index {i} - Out Of Bounds")
 
-        # After both sides are enumerated, reset the flag
-        if flag >= (gap * 2):
-            flag = 0
+            # After both sides are enumerated, reset the flag
+            if flag >= (gap * 2):
+                flag = 0
+        except Exception as e:
+            print(len(column))
+            print(f"Numero que genero el error: {i + gap}")
+            raise e
     return opponent
 
 
 # Primary Functions
+
+#Function to download data from google drive
 def download_data(years: Optional[Union[list, str, int]] = [dt.date.today().year],
-                  delete: Optional[bool] = True) -> pd.DataFrame:
+                   delete: Optional[bool] = True) -> pd.DataFrame:
     r"""
-    Download game data from Oracle's Elixir.
-    This interface will help set up the directory for you, remove old data files, and pull the latest data.
-    The data will be automatically saved for you as a .csv file, and the function returns a Pandas dataframe
-    that is ready for use in additional analytics.
-    If up-to-date local data is already present, this function will simply import that to reduce download volumes.
+     Download game data from Oracle's Elixir.
+     This interface will help set up the directory for you, remove old data files, and pull the latest data.
+     The data will be automatically saved for you as a .csv file, and the function returns a Pandas dataframe
+     that is ready for use in additional analytics.
+     If up-to-date local data is already present, this function will simply import that to reduce download volumes.
 
-    Parameters
-    ----------
-    delete : boolean
-        If True, will delete files in directory upon download of new data.
-    years : Union[list, str, int]
-        A string or list of strings containing years (e.g. ["2019", "2020"])
-        If nothing is specified, returns the current year only by default.
+     Parameters
+     ----------
+     delete : boolean
+         If True, will delete files in directory upon download of new data.
+     years : Union[list, str, int]
+         A string or list of strings containing years (e.g. ["2019", "2020"])
+         If nothing is specified, returns the current year only by default.
 
-    Returns
-    -------
-    A Pandas dataframe containing the most recent Oracle's Elixir data
-    for the years provided by the year parameter.
-    A .csv file in the directory, with the most recent data, if downloaded.
-    """
-    # Defining Time Variables
+     Returns
+     -------
+     A Pandas dataframe containing the most recent Oracle's Elixir data
+     for the years provided by the year parameter.
+     A .csv file in the directory, with the most recent data, if downloaded.
+     """
+     # Defining Time Variables
     directory = Path.cwd().parent.joinpath('data', 'raw')
 
-    current_date = dt.date.today()
-    today = current_date.strftime("%Y%m%d")
-    yesterday = current_date - dt.timedelta(days=1)
-    yesterday = yesterday.strftime("%Y%m%d")
-
-    # Other Variables
-    url = ("https://oracleselixir-downloadable-match-data."
-           "s3-us-west-2.amazonaws.com/")
     oe_data = pd.DataFrame()
 
     # Conditional Handling For Years
     if isinstance(years, (str, int)):
         years = [years]
 
-    # Dynamic Data Import
-    for year in years:
-        file = f"{year}_LoL_esports_match_data_from_OraclesElixir_"
-        current_files = [x for x in os.listdir(directory) if x.startswith(file)]
+    ids_per_year = {
+        2014: "12syQsRH2QnKrQZTQQ6G5zyVeTG2pAYvu",
+        2015: "1qyckLuw0-hJM8XqFhlV9l1xAbr3H78T_",
+        2016: "1muyfpaIqk8_0BFkgLCWXDGNgWSXoPBwG",
+        2017: "11fx3nNjSYB0X8vKxLAbYOrS2Bu6avm9A",
+        2018: "1GsNetJQOMx0QJ6_FN8M1kwGvU_GPPcPZ",
+        2019: "11eKtScnZcpfZcD3w3UrD7nnpfLHvj9_t",
+        2020: "1dlSIczXShnv1vIfGNvBjgk-thMKA5j7d",
+        2021: "1fzwTTz77hcnYjOnO9ONeoPrkWCoOSecA",
+        2022: "1EHmptHyzY8owv0BAcNKtkQpMwfkURwRy",
+        2023: "1XXk2LO0CsNADBB1LRGOV5rUpyZdEZ8s2"
+    }
 
-        if f"{file}{today}.csv" not in current_files:
+    for year in years:
+        #First we check if the year is in the ids dict, if not we print that problem
+        if int(year) not in ids_per_year.keys():
+            print(f"Year {year} Not Found")
+            continue
+
+        #Download data to {year}_LoL_esports_match_data_from_OraclesElixir.csv
+        year_id =  ids_per_year[int(year)]
+        url = f'https://drive.google.com/uc?id={year_id}'
+        file = f"{year}_LoL_esports_match_data_from_OraclesElixir.csv"
+        current_files = [x for x in os.listdir(directory) if x.startswith(file)]
+        #We check if the data from that year has been already downloaded or of the data we want to download is from the current year
+        if file not in current_files or year == dt.datetime.today().year:
             # If today's data not in Dir, optionally delete old versions
             if delete:
-                for f in current_files:
-                    print(f"DELETED: {f}")
-                    os.remove(directory.joinpath(f))
+                 for f in current_files:
+                     print(f"DELETED: {f}")
+                     os.remove(directory.joinpath(f))
+
             try:
-                # Try To Grab File For Current Date
-                filepath = f"{url}{file}{today}.csv"
-
-                r = requests.get(filepath, allow_redirects=True)
-                data = r.content.decode("utf8")
-                data = pd.read_csv(io.StringIO(data), low_memory=False)
+                # Try To Grab File from specified year
+                gdown.download(url, os.path.join(directory, file), quiet=False)
+                data = pd.read_csv(os.path.join(directory, file), low_memory=False)
+                #We make sure the data has been downloaded
                 assert len(data) > 9
-                data.to_csv(directory.joinpath(f"{file}{today}.csv"), index=False)
-                print(f"DOWNLOADED: {file}{today}.csv")
+                print(f"DOWNLOADED: {file}")
+            
             except Exception as e:
-                # Grab Yesterday's Data If Today's Does Not Exist
-                filepath = f"{url}{file}{yesterday}.csv"
+                # Print error 
+                print(f"There was an error downloading data from {year}'s games: {e}")
 
-                r = requests.get(filepath, allow_redirects=True)
-                data = r.content.decode("utf8")
-                data = pd.read_csv(io.StringIO(data), low_memory=False)
-                assert len(data) > 9
-                data.to_csv(directory.joinpath(f"{file}{yesterday}.csv"), index=False)
-                print(e)
-                print(f"DOWNLOADED: {file}{yesterday}.csv")
         else:
             # Grab Local Data If It Exists
-            data = pd.read_csv(directory.joinpath(f"{file}{today}.csv"), low_memory=False)
+            data = pd.read_csv(os.path.join(directory, file), low_memory=False)
             print(f"USING LOCAL {year} DATA")
 
         # Concatenate Data To Master Data Frame
         oe_data = pd.concat([oe_data, data], axis=0)
-
+    
     return oe_data
 
 
@@ -188,7 +200,7 @@ def clean_data(oe_data: pd.DataFrame,
     the parameters provided above.
     """
     # Preliminary Data Type Formatting
-    oe_data = oe_data.astype({"date": "datetime64",
+    oe_data = oe_data.astype({"date": "datetime64[ns]",
                               "gameid": "str",
                               "playerid": "str",
                               "teamid": "str"})
@@ -226,7 +238,7 @@ def clean_data(oe_data: pd.DataFrame,
 
     # Split On Player/Team (and defining some related variables)
     if split_on == "team":
-        oe_data = oe_data[oe_data["position"] == "team"]
+        oe_data = oe_data[oe_data["position"] == "team"].copy()
         cap = 2
         oe_data = oe_data[["date", "gameid", "side", "league", "teamname", "teamid",
                            "result", "kills", "deaths", "assists",
@@ -249,7 +261,7 @@ def clean_data(oe_data: pd.DataFrame,
         raise ValueError("Must split on either player or team.")
 
     # Remove Games That Don't Have Data For All Players OR Have Data For Too Many Players
-    counts = oe_data["gameid"].value_counts().to_frame()
+    counts = oe_data["gameid"].value_counts().rename("gameid").to_frame()
     counts = counts[(counts["gameid"] < cap) | (counts["gameid"] > cap)]
     if len(counts) > 0:
         drop_games = counts.index.to_list()
@@ -285,3 +297,86 @@ def clean_data(oe_data: pd.DataFrame,
 
     # Return Output
     return oe_data
+
+
+# def download_data(years: Optional[Union[list, str, int]] = [dt.date.today().year],
+#                   delete: Optional[bool] = True) -> pd.DataFrame:
+#     r"""
+#     Download game data from Oracle's Elixir.
+#     This interface will help set up the directory for you, remove old data files, and pull the latest data.
+#     The data will be automatically saved for you as a .csv file, and the function returns a Pandas dataframe
+#     that is ready for use in additional analytics.
+#     If up-to-date local data is already present, this function will simply import that to reduce download volumes.
+
+#     Parameters
+#     ----------
+#     delete : boolean
+#         If True, will delete files in directory upon download of new data.
+#     years : Union[list, str, int]
+#         A string or list of strings containing years (e.g. ["2019", "2020"])
+#         If nothing is specified, returns the current year only by default.
+
+#     Returns
+#     -------
+#     A Pandas dataframe containing the most recent Oracle's Elixir data
+#     for the years provided by the year parameter.
+#     A .csv file in the directory, with the most recent data, if downloaded.
+#     """
+#     # Defining Time Variables
+#     directory = Path.cwd().parent.joinpath('data', 'raw')
+
+#     current_date = dt.date.today()
+#     today = current_date.strftime("%Y%m%d")
+#     yesterday = current_date - dt.timedelta(days=1)
+#     yesterday = yesterday.strftime("%Y%m%d")
+
+#     # Other Variables
+#     url = ("https://oracleselixir-downloadable-match-data."
+#            "s3-us-west-2.amazonaws.com/")
+#     oe_data = pd.DataFrame()
+
+#     # Conditional Handling For Years
+#     if isinstance(years, (str, int)):
+#         years = [years]
+
+#     # Dynamic Data Import
+#     for year in years:
+#         file = f"{year}_LoL_esports_match_data_from_OraclesElixir_"
+#         current_files = [x for x in os.listdir(directory) if x.startswith(file)]
+
+#         if f"{file}{today}.csv" not in current_files:
+#             # If today's data not in Dir, optionally delete old versions
+#             if delete:
+#                 for f in current_files:
+#                     print(f"DELETED: {f}")
+#                     os.remove(directory.joinpath(f))
+#             try:
+#                 # Try To Grab File For Current Date
+#                 filepath = f"{url}{file}{today}.csv"
+
+#                 r = requests.get(filepath, allow_redirects=True)
+#                 data = r.content.decode("utf8")
+#                 data = pd.read_csv(io.StringIO(data), low_memory=False)
+#                 assert len(data) > 9
+#                 data.to_csv(directory.joinpath(f"{file}{today}.csv"), index=False)
+#                 print(f"DOWNLOADED: {file}{today}.csv")
+#             except Exception as e:
+#                 # Grab Yesterday's Data If Today's Does Not Exist
+#                 filepath = f"{url}{file}{yesterday}.csv"
+
+#                 r = requests.get(filepath, allow_redirects=True)
+#                 data = r.content.decode("utf8")
+#                 data = pd.read_csv(io.StringIO(data), low_memory=False)
+#                 assert len(data) > 9
+#                 data.to_csv(directory.joinpath(f"{file}{yesterday}.csv"), index=False)
+#                 print(e)
+#                 print(f"DOWNLOADED: {file}{yesterday}.csv")
+#         else:
+#             # Grab Local Data If It Exists
+#             data = pd.read_csv(directory.joinpath(f"{file}{today}.csv"), low_memory=False)
+#             print(f"USING LOCAL {year} DATA")
+
+#         # Concatenate Data To Master Data Frame
+#         oe_data = pd.concat([oe_data, data], axis=0)
+
+#     return oe_data

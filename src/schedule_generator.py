@@ -6,8 +6,8 @@ from os import getenv
 import pandas as pd
 from pathlib import Path
 import requests
-from src.team import Team
-from src.match_predictor import predict_match
+from team import Team
+from match_predictor import predict_match
 from typing import Optional
 
 # Variable Definitions

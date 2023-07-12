@@ -1,4 +1,4 @@
-
+virt/
 *.pyc
 *env
 .idea

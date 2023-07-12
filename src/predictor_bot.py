@@ -13,9 +13,9 @@ from os import getenv
 import pandas as pd
 from pathlib import Path
 import requests
-import src.match_predictor as mp
-import src.model_validator as mv
-from src.team import Team
+import match_predictor as mp
+import model_validator as mv
+from team import Team
 import nest_asyncio
 
 nest_asyncio.apply()

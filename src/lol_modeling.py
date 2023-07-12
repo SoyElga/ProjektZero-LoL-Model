@@ -25,7 +25,7 @@ import pandas as pd
 from pandas import DataFrame
 from pathlib import Path
 import pickle
-import src.oracles_elixir as oe
+import oracles_elixir as oe
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import train_test_split
 import trueskill
@@ -595,6 +595,13 @@ def trueskill_model(player_data: pd.DataFrame, team_data: pd.DataFrame,
                             left_on=['gameid', 'date', 'teamid', 'playerid'],
                             right_on=['gameid', 'date', 'teamid', 'playerid'])
                    .reset_index(drop=True))
+    
+    print("="*50)
+    game_counts = player_data["gameid"].value_counts()
+    for gameid, count in game_counts.items():
+        if count != 10:
+            print(gameid)
+    print("="*50)
 
     player_data["opponent_mu"] = oe.get_opponent(player_data["trueskill_mu"].to_list(), "player")
     player_data["opponent_sigma"] = oe.get_opponent(player_data["trueskill_sigma"].to_list(), "player")

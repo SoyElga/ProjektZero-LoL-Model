@@ -16,8 +16,8 @@ import datetime as dt
 from pathlib import Path
 import pandas as pd
 from typing import Tuple
-import src.lol_modeling as lol
-import src.oracles_elixir as oe
+import lol_modeling as lol
+import oracles_elixir as oe
 
 
 # Function Definitions
@@ -125,7 +125,8 @@ def main():
     invalid_games = ['NA1/3754345055', 'NA1/3754344502',
                      'ESPORTSTMNT02/1890835', 'NA1/3669212337',
                      'NA1/3669211958', 'ESPORTSTMNT02/1890848',
-                     'ESPORTSTMNT02_1932895', 'ESPORTSTMNT02_1932914']
+                     'ESPORTSTMNT02_1932895', 'ESPORTSTMNT02_1932914',
+                     'ESPORTSTMNT05_3220607']
     data = data[~data.gameid.isin(invalid_games)].copy()
 
     # Clean/Format Data
