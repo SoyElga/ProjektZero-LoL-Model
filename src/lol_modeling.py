@@ -25,9 +25,8 @@ import pandas as pd
 from pandas import DataFrame
 from pathlib import Path
 import pickle
-import oracles_elixir_legalane as oe
+import oracles_elixir as oe
 from sklearn.linear_model import LogisticRegression
-from sklearn.model_selection import train_test_split
 import trueskill
 from typing import Optional, Tuple, Dict, Any
 
@@ -598,8 +597,8 @@ def trueskill_model(player_data: pd.DataFrame, team_data: pd.DataFrame,
                             right_on=['gameid', 'date', 'teamid', 'playerid'])
                    .reset_index(drop=True))
 
-    player_data["opponent_mu"] = oe.get_opponent(player_data["trueskill_mu"].to_list(), "player")
-    player_data["opponent_sigma"] = oe.get_opponent(player_data["trueskill_sigma"].to_list(), "player")
+    player_data["opponent_mu"] = oe.OraclesElixir.get_opponent(player_data["trueskill_mu"].to_list(), "player")
+    player_data["opponent_sigma"] = oe.OraclesElixir.get_opponent(player_data["trueskill_sigma"].to_list(), "player")
     player_data.sort_values(by=['date', 'league', 'gameid', 'side', 'position'], ascending=True, inplace=True)
     player_data = player_data.reset_index(drop=True)
 

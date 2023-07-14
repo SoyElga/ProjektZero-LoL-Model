@@ -12,13 +12,17 @@ Please visit and support www.oracleselixir.com
 Tim provides an invaluable service to the League community.
 """
 # Housekeeping
+import boto3
 import datetime as dt
 from pathlib import Path
 import pandas as pd
 from typing import Tuple
 import lol_modeling as lol
-import oracles_elixir_legalane as oe
+import oracles_elixir as oe
 
+from dotenv import dotenv_values
+
+config = dotenv_values(r"..\.env")
 
 # Function Definitions
 def enrich_dataset(player_data: pd.DataFrame,
@@ -46,8 +50,6 @@ def enrich_dataset(player_data: pd.DataFrame,
     team_data = lol.dk_enrich(team_data, entity='team')
     player_data = lol.dk_enrich(player_data, entity='player')
 
-    #if df_checker.team_structure(team_data) and df_checker.player_structure(player_data):
-    #    print("Added draftkings points data")
     print("Enrich DraftKings Points Data")
 
     # Enrich Elo Statistics
@@ -55,8 +57,6 @@ def enrich_dataset(player_data: pd.DataFrame,
 
     team_data = lol.team_elo(team_data)
     team_data = lol.aggregate_player_elos(player_data, team_data)
-    #if df_checker.team_structure(team_data) and df_checker.player_structure(player_data):
-    #    print("Added Elo statistics")
     print("Enrich Elo Statistics")
 
     # Enrich Team TrueSkill
@@ -131,7 +131,12 @@ def main():
     years = [str(current_year), str(current_year - 1), str(current_year - 2)]
 
     # Download Data
-    data = oe.download_data(years=years)
+    s3_session = boto3.Session(aws_access_key_id=config.get("ACCESS_ID"),
+                               aws_secret_access_key=config.get("ACCESS_SECRET"))
+
+    oracle = oe.OraclesElixir(session=s3_session,
+                              bucket='oracles-elixir')
+    data = oracle.ingest_data(years=years)
 
     # Remove Buggy Matches (both red/blue team listed as same team, invalid for elo/TrueSkill)
     # Games where a player is completly missing, this gets bugs in some of the models 
@@ -150,8 +155,8 @@ def main():
     data = data[~data.gameid.isin(invalid_games + player_missing_games)].copy()
 
     # Clean/Format Data
-    teams = oe.clean_data(data, split_on='team')
-    players = oe.clean_data(data, split_on='player')
+    teams = oracle.clean_data(data, split_on='team')
+    players = oracle.clean_data(data, split_on='player')
 
     teams, players = enrich_dataset(player_data=players, team_data=teams)
 
