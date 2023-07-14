@@ -25,7 +25,7 @@ import pandas as pd
 from pandas import DataFrame
 from pathlib import Path
 import pickle
-import oracles_elixir as oe
+import oracles_elixir_legalane as oe
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import train_test_split
 import trueskill
@@ -139,7 +139,7 @@ def elo_calculator(df: pd.DataFrame, entity: str,
 
     return elo_dataframe
 
-
+### Original ###
 def team_elo(df: pd.DataFrame, start: int = 1200, k: int = 32) -> pd.DataFrame:
     """
     Calculate team elo across a dataframe of Oracle's Elixir data.
@@ -190,10 +190,12 @@ def team_elo(df: pd.DataFrame, start: int = 1200, k: int = 32) -> pd.DataFrame:
                          left_on=['league', 'gameid', 'date', 'teamname', 'teamid'],
                          right_on=['league', 'gameid', 'date', 'teamname', 'teamid'])
           .reset_index(drop=True))
-    df.sort_values(by=['date', 'league', 'gameid', 'result'], ascending=True, inplace=True)
-
+    df.sort_values(by=['date', 'league', 'gameid', 'side'], ascending=True, inplace=True)
+    df = df.reset_index(drop=True)
     return df
 
+
+### Original ###
 
 def player_elo(df: pd.DataFrame, start: int = 1200, k: int = 32) -> pd.DataFrame:
     """
@@ -240,16 +242,16 @@ def player_elo(df: pd.DataFrame, start: int = 1200, k: int = 32) -> pd.DataFrame
 
     # Merge Things Back Together
     elo_data = pd.concat([winner_data, loser_data], ignore_index=True)
-
     df = (elo_data.merge(df, how='left',
                          left_on=['gameid', 'league', 'position', 'date', 'teamid', 'playerid'],
                          right_on=['gameid', 'league', 'position', 'date', 'teamid', 'playerid'])
-          .reset_index(drop=True))
-    df.sort_values(by=['date', 'league', 'gameid', 'result', 'position'], ascending=True, inplace=True)
-
+          )
+    df.sort_values(by=['date', 'league', 'gameid', 'side', 'position'], ascending=True, inplace=True)
+    df = df.reset_index(drop=True)
     return df
 
 
+### Original ###
 def aggregate_player_elos(player_data: pd.DataFrame, team_data: pd.DataFrame) -> pd.DataFrame:
     """
     Aggregate individual player elos to a mean elo per team per match.
@@ -278,10 +280,10 @@ def aggregate_player_elos(player_data: pd.DataFrame, team_data: pd.DataFrame) ->
     team_data = (team_data.merge(team_elo_playerbased, how='left',
                                  on=['gameid', 'league', 'date', 'teamid'])
                  .reset_index(drop=True))
-    team_data.sort_values(by=['date', 'league', 'gameid', 'teamid'], ascending=True, inplace=True)
+    team_data.sort_values(by=['date', 'league', 'gameid', 'side', 'teamid'], ascending=True, inplace=True)
+    team_data = team_data.reset_index(drop=True)
 
     return team_data
-
 
 def trueskill_model(player_data: pd.DataFrame, team_data: pd.DataFrame,
                     initial_sigma: float = 8.33) -> Tuple[Optional[DataFrame], Optional[DataFrame], Dict[Any, Any]]:
@@ -595,17 +597,11 @@ def trueskill_model(player_data: pd.DataFrame, team_data: pd.DataFrame,
                             left_on=['gameid', 'date', 'teamid', 'playerid'],
                             right_on=['gameid', 'date', 'teamid', 'playerid'])
                    .reset_index(drop=True))
-    
-    print("="*50)
-    game_counts = player_data["gameid"].value_counts()
-    for gameid, count in game_counts.items():
-        if count != 10:
-            print(gameid)
-    print("="*50)
 
     player_data["opponent_mu"] = oe.get_opponent(player_data["trueskill_mu"].to_list(), "player")
     player_data["opponent_sigma"] = oe.get_opponent(player_data["trueskill_sigma"].to_list(), "player")
-    player_data.sort_values(by=['date', 'league', 'gameid', 'teamname', 'position'], ascending=True, inplace=True)
+    player_data.sort_values(by=['date', 'league', 'gameid', 'side', 'position'], ascending=True, inplace=True)
+    player_data = player_data.reset_index(drop=True)
 
     return player_data, team_data, player_ratings_dict
 
@@ -657,12 +653,18 @@ def ewm_model(df: pd.DataFrame, entity: str) -> pd.DataFrame:
     win_rates = (merged.groupby([identity], as_index=False)
                  .apply(lambda group: group.ffill())
                  .reset_index(drop=True))
+    
     columns = ['blue_side_ema_before', 'blue_side_ema_after', 'red_side_ema_before', 'red_side_ema_after']
     win_rates[columns] = win_rates[columns].fillna(1)
 
+    if entity == "player":
+        win_rates.sort_values(by=['date', 'league', 'gameid', 'side', 'position'], ascending=True, inplace=True)
+    else:
+        win_rates.sort_values(by=['date', 'league', 'gameid', 'side'], ascending=True, inplace=True)
+
     #  Compute Opponent Columns
-    win_rates["opp_red_side_ema_before"] = oe.get_opponent(win_rates["red_side_ema_before"].to_list(), "team")
-    win_rates["opp_blue_side_ema_before"] = oe.get_opponent(win_rates["blue_side_ema_before"].to_list(), "team")
+    win_rates["opp_red_side_ema_before"] = oe.get_opponent(win_rates["red_side_ema_before"].to_list(), entity)
+    win_rates["opp_blue_side_ema_before"] = oe.get_opponent(win_rates["blue_side_ema_before"].to_list(), entity)
 
     # Predict Win Probability By Side Win Rate
     win_rates["side_ema_before"] = (np.where(win_rates['side'] == 'Blue',
@@ -675,9 +677,6 @@ def ewm_model(df: pd.DataFrame, entity: str) -> pd.DataFrame:
     win_rates["side_ema_win_perc"] = (win_rates["side_ema_before"] /
                                       (win_rates["side_ema_before"] + win_rates["opp_side_ema_before"]))
     win_rates["side_ema_win_perc"] = win_rates["side_ema_win_perc"].fillna(0.5)
-
-    # Final Sort
-    win_rates.sort_values(by=['date', 'league', 'gameid', 'result'], ascending=True, inplace=True)
 
     return win_rates
 
@@ -747,7 +746,7 @@ def egpm_model(data: pd.DataFrame, entity: str) -> pd.DataFrame:
     data['egpm_dom_logistic_win_perc'] = probabilities[:, 1]
 
     # Export Model Pickle File
-    filepath = Path.cwd().parent.joinpath('models', 'egpm_dom_logistic_regression.pkl')
+    filepath = Path.cwd().parent.joinpath('models', f'{entity}_egpm_dom_logistic_regression.pkl')
     pickle.dump(clf, open(filepath, 'wb'))
 
     return data

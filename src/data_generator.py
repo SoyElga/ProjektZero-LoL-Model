@@ -17,7 +17,7 @@ from pathlib import Path
 import pandas as pd
 from typing import Tuple
 import lol_modeling as lol
-import oracles_elixir as oe
+import oracles_elixir_legalane as oe
 
 
 # Function Definitions
@@ -46,26 +46,38 @@ def enrich_dataset(player_data: pd.DataFrame,
     team_data = lol.dk_enrich(team_data, entity='team')
     player_data = lol.dk_enrich(player_data, entity='player')
 
+    #if df_checker.team_structure(team_data) and df_checker.player_structure(player_data):
+    #    print("Added draftkings points data")
+    print("Enrich DraftKings Points Data")
+
     # Enrich Elo Statistics
     player_data = lol.player_elo(player_data)
 
     team_data = lol.team_elo(team_data)
     team_data = lol.aggregate_player_elos(player_data, team_data)
+    #if df_checker.team_structure(team_data) and df_checker.player_structure(player_data):
+    #    print("Added Elo statistics")
+    print("Enrich Elo Statistics")
 
     # Enrich Team TrueSkill
     player_data, team_data, ts_lookup = lol.trueskill_model(player_data, team_data, initial_sigma=2.75)
-
+    print("Enrich Team TrueSkill")
+    
+    
     # EGPM Model - TrueSkill Normalized Earned Gold
     team_data = lol.egpm_model(team_data, "team")
     player_data = lol.egpm_model(player_data, "player")
+    print("EGPM Model - TrueSkill Normalized Earned Gold")
 
     # EWM Model - Side Win Rates
-    team_data = lol.ewm_model(team_data, "team")
     player_data = lol.ewm_model(player_data, "player")
+    team_data = lol.ewm_model(team_data, "team")
+    print("EWM Model - Side Win Rates")
 
     # Enrich Game Statistics
     team_data = lol.enrich_ema_statistics(team_data, "team")
     player_data = lol.enrich_ema_statistics(player_data, "player")
+    print("Enrich Game Statistics")
 
     # Render CSV Files
     filepath = Path.cwd().parent
@@ -122,22 +134,28 @@ def main():
     data = oe.download_data(years=years)
 
     # Remove Buggy Matches (both red/blue team listed as same team, invalid for elo/TrueSkill)
+    # Games where a player is completly missing, this gets bugs in some of the models 
+    player_missing_games = ['10074-10074_game_2', 'ESPORTSTMNT02_3170083', 
+                            '10074-10074_game_1', 'ESPORTSTMNT02_3161035', 
+                            'ESPORTSTMNT02_3171378', 'ESPORTSTMNT02_3169606', 
+                            '10062-10062_game_3', 'ESPORTSTMNT02_3161006', 
+                            '10062-10062_game_2', '10062-10062_game_1', 
+                            'ESPORTSTMNT02_3160621']
+    
     invalid_games = ['NA1/3754345055', 'NA1/3754344502',
                      'ESPORTSTMNT02/1890835', 'NA1/3669212337',
                      'NA1/3669211958', 'ESPORTSTMNT02/1890848',
                      'ESPORTSTMNT02_1932895', 'ESPORTSTMNT02_1932914',
                      'ESPORTSTMNT05_3220607']
-    data = data[~data.gameid.isin(invalid_games)].copy()
+    data = data[~data.gameid.isin(invalid_games + player_missing_games)].copy()
 
     # Clean/Format Data
     teams = oe.clean_data(data, split_on='team')
     players = oe.clean_data(data, split_on='player')
 
-    # Enrich Data
     teams, players = enrich_dataset(player_data=players, team_data=teams)
 
     return teams, players
-
 
 if __name__ in ('__main__', '__builtin__', 'builtins'):
     start = dt.datetime.now()
